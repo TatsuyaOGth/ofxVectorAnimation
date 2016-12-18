@@ -1,6 +1,6 @@
 #include "ofxVectorAnimation.h"
 
-static const int DEFAULT_FRAME_RATE = 30;
+static const int DEFAULT_FRAME_RATE = 16;
 
 ofxVectorAnimation::Shape::Shape() : ofPath::ofPath()
 {
@@ -37,6 +37,8 @@ ofxVectorAnimation::ofxVectorAnimation()
 , bLoop(true)
 , mTick(0)
 , mFrameRate(DEFAULT_FRAME_RATE)
+, bSmoothing(true)
+, bHasDrewVertex(false)
 {
     addFrame(); // first frame
     mDrawArea.set(0, 0, ofGetWidth(), ofGetHeight());
@@ -63,7 +65,6 @@ void ofxVectorAnimation::update()
             mTick = 0;
         }
     }
-
 }
 
 void ofxVectorAnimation::draw()
@@ -71,29 +72,98 @@ void ofxVectorAnimation::draw()
     draw(mCurrentNumFrame);
 }
 
+void ofxVectorAnimation::draw(float x, float y, float w, float h)
+{
+    renderFrame(mCurrentNumFrame);
+    mDrawBuffer.draw(x, y, w, h);
+}
+
+void ofxVectorAnimation::draw(float x, float y)
+{
+    renderFrame(mCurrentNumFrame);
+    mDrawBuffer.draw(x, y);
+}
+
+void ofxVectorAnimation::draw(ofPoint &pos)
+{
+    renderFrame(mCurrentNumFrame);
+    mDrawBuffer.draw(pos.x, pos.y);
+}
+
+void ofxVectorAnimation::draw(ofRectangle &rect)
+{
+    renderFrame(mCurrentNumFrame);
+    mDrawBuffer.draw(rect);
+}
+
 void ofxVectorAnimation::draw(int numFrame)
 {
-    if (numFrame >= 0 || numFrame < mFrames.size())
-    {
-        mDrawBuffer.begin();
-        ofClear(0);
-        for (const auto& e : mFrames[numFrame]->shapes)
-        {
-            e.draw();
-        }
-        if (numFrame == mCurrentNumFrame)
-        {
-            mTmpShape.draw();
-        }
-        
-        mDrawBuffer.end();
-        mDrawBuffer.draw(0, 0);
-    }
+    renderFrame(numFrame);
+    mDrawBuffer.draw(0, 0);
 }
+
+void ofxVectorAnimation::draw(int numFrame, float x, float y, float w, float h)
+{
+    renderFrame(numFrame);
+    mDrawBuffer.draw(x, y, w, h);
+}
+
+void ofxVectorAnimation::draw(int numFrame, float x, float y)
+{
+    renderFrame(numFrame);
+    mDrawBuffer.draw(x, y);
+}
+
+void ofxVectorAnimation::draw(int numFrame, ofPoint &pos)
+{
+    renderFrame(numFrame);
+    mDrawBuffer.draw(pos.x, pos.y);
+}
+
+void ofxVectorAnimation::draw(int numFrame, ofRectangle &rect)
+{
+    renderFrame(numFrame);
+    mDrawBuffer.draw(rect);
+}
+
+ofTexture ofxVectorAnimation::getFrameTexture()
+{
+    renderFrame(mCurrentNumFrame);
+    return mDrawBuffer.getTexture();
+}
+
+ofTexture ofxVectorAnimation::getFrameTexture(int numFrame)
+{
+    renderFrame(numFrame);
+    return mDrawBuffer.getTexture();
+}
+
 
 void ofxVectorAnimation::addVertex(int x, int y)
 {
-    mTmpShape.lineTo(x, y);
+    if (bSmoothing)
+    {
+        if (bHasDrewVertex) {
+            if (mLastDrawPoint.distance(ofPoint(x, y)) > 10)
+            {
+                mTmpShape.curveTo(x, y);
+            }
+            else {
+                mTmpShape.lineTo(x, y);
+            }
+        }
+        else {
+            mTmpShape.moveTo(x, y);
+        }
+    }
+    else {
+        mTmpShape.lineTo(x, y);
+    }
+    
+    mLastDrawPoint.set(x, y);
+    if (bHasDrewVertex == false) {
+        bHasDrewVertex = true;
+    }
 }
 
 void ofxVectorAnimation::addVertex(const ofPoint &point)
@@ -101,22 +171,47 @@ void ofxVectorAnimation::addVertex(const ofPoint &point)
     addVertex(point.x, point.y);
 }
 
-void ofxVectorAnimation::establishVertices()
+void ofxVectorAnimation::establishVertices(bool simplify, float tolerance)
 {
+    if (simplify) {
+        mTmpShape.simplify();
+    }
     mFrames[mCurrentNumFrame]->shapes.push_back(mTmpShape);
-    mTmpShape.clear();
+    initVertecs();
+    bHasDrewVertex = false;
+}
+
+void ofxVectorAnimation::undo()
+{
+    if (mFrames[mCurrentNumFrame]->shapes.size() > 0)
+    {
+        auto lastShape = mFrames[mCurrentNumFrame]->shapes.back();
+        mRedoShape.push(lastShape);
+        mFrames[mCurrentNumFrame]->shapes.pop_back();
+    }
+}
+
+void ofxVectorAnimation::redo()
+{
+    if (mRedoShape.empty() == false)
+    {
+        mFrames[mCurrentNumFrame]->shapes.push_back(mRedoShape.top());
+        mRedoShape.pop();
+    }
 }
 
 int ofxVectorAnimation::addFrame()
 {
     mFrames.push_back(shared_ptr<Frame>(new Frame()));
     mCurrentNumFrame = mFrames.size() - 1;
+    initVertecs();
     return mFrames.size();
 }
 
 int ofxVectorAnimation::insertFrame(int frame)
 {
     mFrames.insert(mFrames.begin() + frame, shared_ptr<Frame>(new Frame()));
+    initVertecs();
     return mFrames.size();
 }
 
@@ -125,6 +220,7 @@ void ofxVectorAnimation::removeFrame()
     if (mFrames.size() > 1)
     {
         mFrames.erase(mFrames.begin() + mCurrentNumFrame);
+        initVertecs();
         mCurrentNumFrame--;
     }
 }
@@ -144,6 +240,7 @@ void ofxVectorAnimation::nextFrame(bool loop)
             mCurrentNumFrame = 0;
         else
             mCurrentNumFrame = mFrames.size() - 1;
+        initVertecs();
     }
 }
 
@@ -152,6 +249,7 @@ void ofxVectorAnimation::backFrame()
     if (mCurrentNumFrame - 1 >= 0)
     {
         mCurrentNumFrame--;
+        initVertecs();
     }
 }
 
@@ -503,25 +601,137 @@ bool ofxVectorAnimation::load(const string &filename)
 
 bool ofxVectorAnimation::save()
 {
-    auto res = ofSystemSaveDialog("animation_sequence.dat", "Choose Save Path");
+    if (mFilePath.empty())
+    {
+        saveDialog();
+    }
+    else {
+        save(mFilePath);
+    }
+}
+
+bool ofxVectorAnimation::saveDialog()
+{
+    auto res = ofSystemSaveDialog("*.xml", "Choose Save Path");
     if (res.bSuccess)
     {
+        mFilePath = res.getPath();
         return save(res.getPath());
     }
     return false;
 }
 
-bool ofxVectorAnimation::load()
+bool ofxVectorAnimation::loadDialog()
 {
     auto res = ofSystemLoadDialog();
     if (res.bSuccess)
     {
+        mFilePath = res.getPath();
         return load(res.getPath());
     }
     return false;
 }
 
+const ofxVectorAnimation::Frame& ofxVectorAnimation::getFrame() const
+{
+    return *mFrames[mCurrentNumFrame];
+}
+
+const vector<ofxVectorAnimation::Shape>& ofxVectorAnimation::getShapes() const
+{
+    return mFrames[mCurrentNumFrame]->shapes;
+}
+
+vector<ofPath> ofxVectorAnimation::getPaths() const
+{
+    vector<ofPath> paths;
+    const auto& frame = mFrames[mCurrentNumFrame];
+    for (const auto& e : frame->shapes)
+    {
+        paths.emplace_back((ofPath)e);
+    }
+    return paths;
+}
+
+vector<vector<ofPoint> > ofxVectorAnimation::getPoints() const
+{
+    vector<vector<ofPoint> > paths;
+    const auto& frame = mFrames[mCurrentNumFrame];
+    for (const auto& e : frame->shapes)
+    {
+        paths.emplace_back(e.getOutline()[0].getVertices());
+    }
+    return paths;
+}
+
+const ofxVectorAnimation::Frame& ofxVectorAnimation::getFrame(int numFrame) const
+{
+    return *mFrames[numFrame];
+}
+
+const vector<ofxVectorAnimation::Shape>& ofxVectorAnimation::getShapes(int numFrame) const
+{
+    return mFrames[numFrame]->shapes;
+}
+
+vector<ofPath> ofxVectorAnimation::getPaths(int numFrame) const
+{
+    vector<ofPath> paths;
+    const auto& frame = mFrames[numFrame];
+    for (const auto& e : frame->shapes)
+    {
+        paths.emplace_back((ofPath)e);
+    }
+    return paths;
+}
+
+vector<vector<ofPoint> > ofxVectorAnimation::getPoints(int numFrame) const
+{
+    vector<vector<ofPoint> > paths;
+    const auto& frame = mFrames[numFrame];
+    for (const auto& e : frame->shapes)
+    {
+        paths.emplace_back(e.getOutline()[0].getVertices());
+    }
+    return paths;
+}
+
+
+
+void ofxVectorAnimation::initVertecs()
+{
+    mTmpShape.clear();
+    
+    if (mRedoShape.empty() == false)
+    {
+        while (mRedoShape.empty() == false) mRedoShape.pop();
+    }
+}
+
 void ofxVectorAnimation::allocateDrawBuffer()
 {
     mDrawBuffer.allocate(mDrawArea.width, mDrawArea.height, GL_RGBA);
+}
+
+void ofxVectorAnimation::renderFrame(int numFrame)
+{
+    if (numFrame >= 0 || numFrame < mFrames.size())
+    {
+        mDrawBuffer.begin();
+        ofClear(0);
+        for (const auto& e : mFrames[numFrame]->shapes)
+        {
+            e.draw();
+        }
+        if (numFrame == mCurrentNumFrame)
+        {
+            mTmpShape.draw();
+        }
+        mDrawBuffer.end();
+    }
+    else {
+        mDrawBuffer.begin();
+        ofClear(0);
+        mDrawBuffer.end();
+    }
 }

@@ -24,4 +24,7 @@ class ofApp : public ofBaseApp{
 		
     
     ofxVectorAnimation mAnime;
+    
+    bool bOnCommandKey;
+    bool bOnShiftKey;
 };

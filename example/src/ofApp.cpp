@@ -15,8 +15,12 @@ void ofApp::draw(){
     ofBackground(255);
     
     ofEnableAlphaBlending();
-    ofSetColor(255, 90);
-    mAnime.drawPrevFrame();
+    
+    if (mAnime.isPlaying() == false)
+    {
+        ofSetColor(255, 90);
+        mAnime.drawPrevFrame();
+    }
     
     ofSetColor(255, 255);
     mAnime.draw();
@@ -31,19 +35,36 @@ void ofApp::draw(){
 
 //--------------------------------------------------------------
 void ofApp::keyPressed(int key){
-
+    
     switch (key)
     {
         case 's':
-            mAnime.save("drawpath.xml");
+            if (bOnCommandKey)
+            {
+                if (bOnShiftKey)
+                    mAnime.saveDialog();
+                else
+                    mAnime.save();
+            }
             break;
             
-        case 'l':
-            mAnime.load("drawpath.xml");
+        case 'o':
+            if (bOnCommandKey) mAnime.loadDialog();
+            break;
+            
+        case 'z':
+            if (bOnCommandKey && bOnShiftKey)
+                mAnime.redo();
+            else if (bOnCommandKey)
+                mAnime.undo();
+            break;
+            
+        case 'y':
+            if (bOnCommandKey) mAnime.redo();
             break;
             
         case 'c':
-            mAnime.clear();
+            if (bOnCommandKey) mAnime.clear();
             break;
             
         case OF_KEY_RETURN:
@@ -68,13 +89,17 @@ void ofApp::keyPressed(int key){
             
         case OF_KEY_DOWN:
             mAnime.setFrameRate(mAnime.getFrameRate() - 1);
+            break;
     }
     
+    if (key == OF_KEY_COMMAND) bOnCommandKey = true;
+    if (key == OF_KEY_SHIFT) bOnShiftKey = true;
 }
 
 //--------------------------------------------------------------
 void ofApp::keyReleased(int key){
-
+    if (key == OF_KEY_COMMAND) bOnCommandKey = false;
+    if (key == OF_KEY_SHIFT) bOnShiftKey = false;
 }
 
 //--------------------------------------------------------------
