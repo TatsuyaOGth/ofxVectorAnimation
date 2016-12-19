@@ -143,7 +143,8 @@ void ofxVectorAnimation::addVertex(int x, int y)
 {
     if (bSmoothing)
     {
-        if (bHasDrewVertex) {
+        if (bHasDrewVertex)
+        {
             if (mLastDrawPoint.distance(ofPoint(x, y)) > 10)
             {
                 mTmpShape.curveTo(x, y);
@@ -161,7 +162,8 @@ void ofxVectorAnimation::addVertex(int x, int y)
     }
     
     mLastDrawPoint.set(x, y);
-    if (bHasDrewVertex == false) {
+    if (bHasDrewVertex == false)
+    {
         bHasDrewVertex = true;
     }
 }
@@ -173,9 +175,16 @@ void ofxVectorAnimation::addVertex(const ofPoint &point)
 
 void ofxVectorAnimation::establishVertices(bool simplify, float tolerance)
 {
-    if (simplify) {
-        mTmpShape.simplify();
+    if (simplify)
+    {
+        mTmpShape.simplify(tolerance);
     }
+    
+    if (mTmpShape.isFilled())
+    {
+        mTmpShape.close();
+    }
+    
     mFrames[mCurrentNumFrame]->shapes.push_back(mTmpShape);
     initVertecs();
     bHasDrewVertex = false;
@@ -231,7 +240,7 @@ void ofxVectorAnimation::clear()
     addFrame();
 }
 
-void ofxVectorAnimation::nextFrame(bool loop)
+int ofxVectorAnimation::nextFrame(bool loop)
 {
     mCurrentNumFrame++;
     if (mCurrentNumFrame >= mFrames.size())
@@ -242,15 +251,30 @@ void ofxVectorAnimation::nextFrame(bool loop)
             mCurrentNumFrame = mFrames.size() - 1;
         initVertecs();
     }
+    return mCurrentNumFrame;
 }
 
-void ofxVectorAnimation::backFrame()
+int ofxVectorAnimation::backFrame()
 {
     if (mCurrentNumFrame - 1 >= 0)
     {
         mCurrentNumFrame--;
         initVertecs();
     }
+    return mCurrentNumFrame;
+}
+
+int ofxVectorAnimation::changeFrame(int frame)
+{
+    if (frame >= 0 && frame < mFrames.size())
+    {
+        if (mCurrentNumFrame != frame)
+        {
+            initVertecs();
+        }
+        mCurrentNumFrame = frame;
+    }
+    return mCurrentNumFrame;
 }
 
 void ofxVectorAnimation::play()
@@ -269,13 +293,7 @@ void ofxVectorAnimation::setLoop(bool loopEnable)
     bLoop = loopEnable;
 }
 
-void ofxVectorAnimation::changeFrame(int frame)
-{
-    if (frame >= 0 && frame < mFrames.size())
-    {
-        mCurrentNumFrame = frame;
-    }
-}
+
 
 void ofxVectorAnimation::togglePlay()
 {
@@ -725,7 +743,10 @@ void ofxVectorAnimation::renderFrame(int numFrame)
         }
         if (numFrame == mCurrentNumFrame)
         {
-            mTmpShape.draw();
+            if (mTmpShape.getCommands().empty() == false)
+            {
+                mTmpShape.draw();
+            }
         }
         mDrawBuffer.end();
     }

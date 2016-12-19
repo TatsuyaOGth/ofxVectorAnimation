@@ -84,15 +84,22 @@ public:
     void establishVertices(bool simplify = true, float tolerance = 0.3);
     void undo();
     void redo();
+    
+    inline void setFilled(bool hasFill) { mTmpShape.setFilled(hasFill); }
+    inline void setStrokeWidth(float width) { mTmpShape.setStrokeWidth(width); }
+    inline void setColor(ofColor color) { mTmpShape.setColor(color); }
+    inline void setFillColor(ofColor color) { mTmpShape.setFillColor(color); }
+    inline void setStrokeColor(ofColor color) { mTmpShape.setStrokeColor(color); }
 
+    
     int addFrame();
     int insertFrame(int frame);
     void removeFrame();
     void clear();
     
-    void nextFrame(bool loop = false);
-    void backFrame();
-    void changeFrame(int frame);
+    int nextFrame(bool loop = false);
+    int backFrame();
+    int changeFrame(int frame);
     
     void play();
     void stop();
