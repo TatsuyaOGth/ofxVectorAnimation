@@ -31,3 +31,6 @@
 *.sdf
 *.suo
 *.opensdf
+
+#data
+*.xml
